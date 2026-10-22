@@ -90,8 +90,10 @@ export function Login({ config, onLoggedIn }: { config: Config; onLoggedIn: () =
         transition={{ delay: 0.25, type: "spring", stiffness: 300, damping: 28 }}
       >
         {config.googleClientId && (
-          <div className="google-slot" ref={slot}>
+          <div className="google-slot">
             {!gisReady && <div className="sk" style={{ width: 280, height: 44, borderRadius: 99 }} />}
+            {/* Google owns this node's children; React must never render into it. */}
+            <div ref={slot} style={{ display: gisReady ? "flex" : "none", justifyContent: "center", width: "100%" }} />
           </div>
         )}
         {config.devLogin && (
