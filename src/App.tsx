@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, CalendarDays, Plus, Settings } from "lucide-react";
 import { ApiError, api, haptic, todayKey, type Task } from "./api";
@@ -80,6 +80,14 @@ function Main({ user, onLogout }: { user: NonNullable<Awaited<ReturnType<typeof 
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [formOf, setFormOf] = useState<Task | null>(null);
+  // Auto-hiding nav: slide away while scrolling down, come back on any upward scroll.
+  const { scrollY } = useScroll();
+  const [navHidden, setNavHidden] = useState(false);
+  useMotionValueEvent(scrollY, "change", (y) => {
+    const delta = y - (scrollY.getPrevious() ?? 0);
+    if (y < 80 || delta < -4) setNavHidden(false);
+    else if (delta > 6) setNavHidden(true);
+  });
   const tabIndex = TABS.findIndex((t) => t.id === tab);
   const [prevIndex, setPrevIndex] = useState(tabIndex);
   const dir = tabIndex >= prevIndex ? 1 : -1;
@@ -112,8 +120,8 @@ function Main({ user, onLogout }: { user: NonNullable<Awaited<ReturnType<typeof 
       <motion.nav
         className="tabbar"
         initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.1 }}
+        animate={{ y: navHidden && !adding ? 130 : 0 }}
+        transition={{ type: "spring", stiffness: 340, damping: 32 }}
       >
         <div className="tabs glass" role="tablist">
           {TABS.map((t) => (

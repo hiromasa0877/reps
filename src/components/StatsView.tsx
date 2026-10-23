@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { useEffect } from "react";
+import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
+import { useEffect, useState } from "react";
 import { CalendarCheck, Flame, Trophy, Weight } from "lucide-react";
-import { WEEKDAYS, addDays, api, fromKey, todayKey } from "../api";
-import { PARTS } from "../../shared/catalog";
+import { WEEKDAYS, addDays, api, daysBetween, fromKey, todayKey, type PartStat } from "../api";
+import { PARTS, type Part } from "../../shared/catalog";
+import { BodyMap, MiniBody } from "./BodyFigure";
 import { StatsSkeleton } from "./Skeleton";
 
 function CountUp({ value }: { value: number }) {
@@ -44,9 +45,14 @@ function StatsBody({
   data: { date: string; total: number; done: number; volume: number }[];
   start: string;
   today: string;
-  parts: { part: string; done: number }[];
+  parts: PartStat[];
 }) {
   const partMax = Math.max(1, ...parts.map((p) => p.done));
+  const [picked, setPicked] = useState<Part | null>(null);
+  const dayMax = Math.max(1, ...parts.map((p) => p.days));
+  const statOf = (p: Part) => parts.find((x) => x.part === p);
+  const pickedStat = picked ? statOf(picked) : undefined;
+  const pickedMeta = PARTS.find((p) => p.id === picked);
   const by = new Map(data.map((d) => [d.date, d]));
   const days = Array.from({ length: 28 }, (_, i) => addDays(start, i));
 
@@ -68,6 +74,48 @@ function StatsBody({
 
   return (
     <div>
+      <motion.div className="glass panel" style={{ marginTop: 0, marginBottom: 10 }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+        <h3>鍛えた部位（直近4週間）</h3>
+        <BodyMap
+          intensity={(p) => (statOf(p)?.days ?? 0) / dayMax}
+          selected={picked}
+          onSelect={(p) => setPicked((cur) => (cur === p ? null : p))}
+        />
+        <AnimatePresence mode="wait" initial={false}>
+          {pickedMeta ? (
+            <motion.div
+              key={pickedMeta.id}
+              className="hotspot-card"
+              style={{ ["--pc" as string]: pickedMeta.color }}
+              initial={{ opacity: 0, y: 10, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6 }}
+              data-testid="hotspot-card"
+            >
+              <div className="h">
+                <MiniBody parts={[pickedMeta.id]} size={18} />
+                {pickedMeta.label}
+              </div>
+              <div className="m">
+                {pickedStat
+                  ? `${pickedStat.days}日・${pickedStat.done}種目 ／ 最終 ${daysBetween(pickedStat.last, today) === 0 ? "今日" : `${daysBetween(pickedStat.last, today)}日前`}`
+                  : "この期間の記録なし"}
+              </div>
+              {!!pickedStat?.names.length && (
+                <div className="names">
+                  {pickedStat.names.map((n) => (
+                    <span key={n}>{n}</span>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div key="hint" className="hint" style={{ marginTop: 8 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              部位をタップで詳細
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
       <div className="stat-grid">
         {stats.map((s, i) => (
           <motion.div

@@ -1,16 +1,11 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Dumbbell } from "lucide-react";
-import { WEEKDAYS, addDays, api, fromKey, haptic, todayKey, type Task } from "../api";
+import { Dumbbell } from "lucide-react";
+import { WEEKDAYS, addDays, fromKey, todayKey, type Task } from "../api";
+import { MonthCalendar } from "./MonthCalendar";
 import { STATUS_META, STATUS_ORDER, nextStatus, prevStatus, useTasks } from "../useTasks";
 import { CardSkeletons } from "./Skeleton";
 import { SwipeHint, TaskCard } from "./TaskCard";
-
-function weekStart(key: string) {
-  const d = fromKey(key).getDay();
-  return addDays(key, -((d + 6) % 7)); // Monday
-}
 
 function ProgressRing({ done, total }: { done: number; total: number }) {
   const r = 24;
@@ -56,86 +51,6 @@ function ProgressRing({ done, total }: { done: number; total: number }) {
   );
 }
 
-function DateStrip({ date, onChange }: { date: string; onChange: (d: string) => void }) {
-  const start = weekStart(date);
-  const [dir, setDir] = useState(0);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  const summary = useQuery({
-    queryKey: ["summary", days[0], days[6]],
-    queryFn: () => api.summary(days[0], days[6]),
-  });
-  const byDate = new Map(summary.data?.map((s) => [s.date, s]));
-  const today = todayKey();
-
-  const shift = (n: number) => {
-    setDir(n);
-    haptic(6);
-    onChange(addDays(date, n * 7));
-  };
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 14, marginInline: -8 }}>
-      <button className="icon-btn" style={{ width: 28 }} onClick={() => shift(-1)} aria-label="前の週">
-        <ChevronLeft size={18} />
-      </button>
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div
-            key={start}
-            className="dates"
-            style={{ marginTop: 0 }}
-            custom={dir}
-            initial={{ x: dir * 60, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: dir * -60, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 36 }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.3}
-            onDragEnd={(_, i) => {
-              if (i.offset.x < -50) shift(1);
-              else if (i.offset.x > 50) shift(-1);
-            }}
-          >
-            {days.map((d) => {
-              const wd = fromKey(d).getDay();
-              const s = byDate.get(d);
-              const active = d === date;
-              return (
-                <motion.button
-                  key={d}
-                  className={`date ${active ? "active" : ""} ${d === today ? "today" : ""} ${wd === 0 ? "sun" : wd === 6 ? "sat" : ""}`}
-                  onClick={() => {
-                    haptic(5);
-                    onChange(d);
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                  aria-pressed={active}
-                  aria-label={d}
-                >
-                  {active && (
-                    <motion.div
-                      layoutId="date-pill"
-                      className="pill"
-                      transition={{ type: "spring", stiffness: 500, damping: 38 }}
-                    />
-                  )}
-                  <span className="wd">{WEEKDAYS[wd]}</span>
-                  <span className="d">{fromKey(d).getDate()}</span>
-                  <span className={`dot ${s && s.total ? (s.done === s.total ? "all" : "some") : ""}`} />
-                </motion.button>
-              );
-            })}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-      <button className="icon-btn" style={{ width: 28 }} onClick={() => shift(1)} aria-label="次の週">
-        <ChevronRight size={18} />
-      </button>
-    </div>
-  );
-}
-
 export function TodayView({
   date,
   onDate,
@@ -170,8 +85,9 @@ export function TodayView({
 
   return (
     <>
+      <MonthCalendar date={date} onChange={onDate} />
       <motion.header
-        className="topbar glass"
+        className="topbar glass day-bar"
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -203,7 +119,6 @@ export function TodayView({
           </div>
           <ProgressRing done={done} total={total} />
         </div>
-        <DateStrip date={date} onChange={onDate} />
       </motion.header>
 
       {query.isPending ? (

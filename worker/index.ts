@@ -251,12 +251,16 @@ app.get("/summary", async (c) => {
   if (!isDate(from) || !isDate(to)) return c.json({ error: "bad_date" }, 400);
   const { results } = await c.env.DB.prepare(
     `SELECT date, COUNT(*) AS total, SUM(status = 'done') AS done,
-       SUM(CASE WHEN status = 'done' THEN sets * reps * weight ELSE 0 END) AS volume
+       SUM(CASE WHEN status = 'done' THEN sets * reps * weight ELSE 0 END) AS volume,
+       GROUP_CONCAT(DISTINCT CASE WHEN status = 'done' AND part != '' THEN part END) AS parts,
+       GROUP_CONCAT(DISTINCT CASE WHEN status != 'done' AND part != '' THEN part END) AS planned
      FROM tasks WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date ORDER BY date`,
   )
     .bind(c.get("userId"), from, to)
-    .all();
-  return c.json(results);
+    .all<{ parts: string | null; planned: string | null }>();
+  // parts = body parts trained that day, planned = parts on the menu but not finished yet.
+  const split = (v: string | null) => (v ? v.split(",") : []);
+  return c.json(results.map((r) => ({ ...r, parts: split(r.parts), planned: split(r.planned) })));
 });
 
 // Last completed record per exercise (SQLite returns the row holding MAX()), used to prefill new entries.
@@ -288,12 +292,18 @@ app.get("/parts", async (c) => {
   const to = c.req.query("to");
   if (!isDate(from) || !isDate(to)) return c.json({ error: "bad_date" }, 400);
   const { results } = await c.env.DB.prepare(
-    `SELECT part, COUNT(*) AS done FROM tasks WHERE user_id = ? AND status = 'done' AND part != '' AND date BETWEEN ? AND ?
+    `SELECT part,
+       SUM(date BETWEEN ?2 AND ?3) AS done,
+       COUNT(DISTINCT CASE WHEN date BETWEEN ?2 AND ?3 THEN date END) AS days,
+       MAX(date) AS last,
+       GROUP_CONCAT(DISTINCT CASE WHEN date BETWEEN ?2 AND ?3 THEN name END) AS names
+     FROM tasks WHERE user_id = ?1 AND status = 'done' AND part != '' AND date <= ?3
      GROUP BY part`,
   )
     .bind(c.get("userId"), from, to)
-    .all();
-  return c.json(results);
+    .all<{ names: string | null }>();
+  // last = most recent training day for the part (any time up to `to`), for "n日前" recency.
+  return c.json(results.map((r) => ({ ...r, names: r.names ? r.names.split(",") : [] })));
 });
 
 // ---------- Workers AI: generate a workout menu ----------

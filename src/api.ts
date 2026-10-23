@@ -23,7 +23,8 @@ export type TaskDraft = { name: string; part?: Part | ""; sets: number; reps: nu
 export type LastRecord = WorkRecord & { name: string; part: Part | "" };
 export type User = { id: string; email: string; name: string; picture: string };
 export type Config = { googleClientId: string | null; devLogin: boolean };
-export type DaySummary = { date: string; total: number; done: number; volume: number };
+export type DaySummary = { date: string; total: number; done: number; volume: number; parts: Part[]; planned: Part[] };
+export type PartStat = { part: Part; done: number; days: number; last: string; names: string[] };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -57,7 +58,7 @@ export const api = {
   summary: (from: string, to: string) => request<DaySummary[]>(`/summary?from=${from}&to=${to}`),
   exercises: () => request<LastRecord[]>("/exercises"),
   history: (name: string) => request<WorkRecord[]>(`/history?name=${encodeURIComponent(name)}`),
-  parts: (from: string, to: string) => request<{ part: Part; done: number }[]>(`/parts?from=${from}&to=${to}`),
+  parts: (from: string, to: string) => request<PartStat[]>(`/parts?from=${from}&to=${to}`),
   aiPlan: (prompt: string, parts: Part[]) => request<{ items: TaskDraft[] }>("/ai/plan", json("POST", { prompt, parts })),
 };
 
@@ -91,3 +92,6 @@ export const fmtDate = (k: string) => {
   const d = fromKey(k);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
+
+/** Whole days from `from` to `to` (both YYYY-MM-DD). */
+export const daysBetween = (from: string, to: string) => Math.round((fromKey(to).getTime() - fromKey(from).getTime()) / 86_400_000);
