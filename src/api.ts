@@ -1,7 +1,9 @@
 import type { Part } from "../shared/catalog";
 
 export type Status = "todo" | "doing" | "done";
-export type WorkRecord = { date: string; sets: number; reps: number; weight: number };
+/** One set: weight (kg, 0 = bodyweight), reps, and a short note (rest time, feel...). */
+export type SetRow = { weight: number; reps: number; note: string };
+export type WorkRecord = { date: string; sets: number; reps: number; weight: number; set_list: SetRow[] };
 
 export type Task = {
   id: string;
@@ -11,6 +13,7 @@ export type Task = {
   sets: number;
   reps: number;
   weight: number;
+  set_list: SetRow[];
   done_sets: number;
   prev: WorkRecord | null;
   note: string;
@@ -19,7 +22,7 @@ export type Task = {
   completed_at: number | null;
 };
 
-export type TaskDraft = { name: string; part?: Part | ""; sets: number; reps: number; weight: number; note?: string };
+export type TaskDraft = { name: string; part?: Part | ""; sets: number; reps: number; weight: number; note?: string; set_list?: SetRow[] };
 export type LastRecord = WorkRecord & { name: string; part: Part | "" };
 export type User = { id: string; email: string; name: string; picture: string };
 export type Config = { googleClientId: string | null; devLogin: boolean };
@@ -95,3 +98,18 @@ export const fmtDate = (k: string) => {
 
 /** Whole days from `from` to `to` (both YYYY-MM-DD). */
 export const daysBetween = (from: string, to: string) => Math.round((fromKey(to).getTime() - fromKey(from).getTime()) / 86_400_000);
+
+export const fmtWeight = (w: number) => (w > 0 ? `${w}kg` : "自重");
+/** "40kg×10・40kg×8" — collapses identical consecutive sets into "40kg×10×2". */
+export const fmtSets = (list: SetRow[]) => {
+  const groups: { weight: number; reps: number; n: number }[] = [];
+  for (const r of list) {
+    const g = groups[groups.length - 1];
+    if (g && g.weight === r.weight && g.reps === r.reps) g.n++;
+    else groups.push({ weight: r.weight, reps: r.reps, n: 1 });
+  }
+  return groups.map((g) => `${fmtWeight(g.weight)}×${g.reps}${g.n > 1 ? `×${g.n}` : ""}`).join("・");
+};
+/** Identical sets from a sets/reps/weight summary (AI drafts, presets). */
+export const uniformSets = (d: { sets: number; reps: number; weight: number }): SetRow[] =>
+  Array.from({ length: d.sets }, () => ({ weight: d.weight, reps: d.reps, note: "" }));

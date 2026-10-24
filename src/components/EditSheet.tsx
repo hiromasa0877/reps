@@ -3,11 +3,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Check, Trash2 } from "lucide-react";
 import { findExercise } from "../../shared/catalog";
-import { api, fmtDate, fmtSet, type Task } from "../api";
+import { api, fmtDate, fmtSets, type Task } from "../api";
 import { FormGuide } from "./FormDiagram";
 import { useTasks } from "../useTasks";
 import { Sheet } from "./Sheet";
-import { Stepper } from "./Stepper";
+import { SetEditor } from "./SetEditor";
 
 export function EditSheet({ task, onClose }: { task: Task | null; onClose: () => void }) {
   const [draft, setDraft] = useState<Task | null>(task);
@@ -27,8 +27,8 @@ export function EditSheet({ task, onClose }: { task: Task | null; onClose: () =>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const { name, sets, reps, weight, note } = draft;
-            update.mutate({ id: draft.id, patch: { name, sets, reps, weight, note } });
+            const { name, set_list, note } = draft;
+            update.mutate({ id: draft.id, patch: { name, set_list, note } });
             onClose();
           }}
         >
@@ -39,12 +39,8 @@ export function EditSheet({ task, onClose }: { task: Task | null; onClose: () =>
             maxLength={60}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
-          <div className="label">内容</div>
-          <div className="steppers">
-            <Stepper label="重量" unit="kg" value={draft.weight} step={2.5} min={0} max={999} onChange={(weight) => setDraft({ ...draft, weight })} />
-            <Stepper label="回数" value={draft.reps} step={1} min={1} max={200} onChange={(reps) => setDraft({ ...draft, reps })} />
-            <Stepper label="セット" value={draft.sets} step={1} min={1} max={20} onChange={(sets) => setDraft({ ...draft, sets })} />
-          </div>
+          <div className="label">セット（{draft.set_list.length}）</div>
+          <SetEditor sets={draft.set_list} onChange={(set_list) => setDraft({ ...draft, set_list })} />
           {!!history.data?.length && (
             <>
               <div className="label">これまでの記録</div>
@@ -52,7 +48,7 @@ export function EditSheet({ task, onClose }: { task: Task | null; onClose: () =>
                 {history.data.map((h, i) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                     <span>{fmtDate(h.date)}</span>
-                    <span>{fmtSet(h)}</span>
+                    <span>{fmtSets(h.set_list)}</span>
                   </motion.div>
                 ))}
               </div>
@@ -75,7 +71,7 @@ export function EditSheet({ task, onClose }: { task: Task | null; onClose: () =>
             className="field"
             style={{ fontSize: 15, fontWeight: 600 }}
             aria-label="メモ"
-            placeholder="フォーム、感覚など"
+            placeholder="種目全体のメモ"
             value={draft.note}
             maxLength={200}
             onChange={(e) => setDraft({ ...draft, note: e.target.value })}

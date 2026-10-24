@@ -3,12 +3,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Check, History, Pencil, Plus, Sparkles } from "lucide-react";
 import { CATALOG, PARTS, findExercise, type Part } from "../../shared/catalog";
-import { api, fmtDate, fmtSet, haptic, type LastRecord, type TaskDraft } from "../api";
+import { api, fmtDate, fmtSet, fmtSets, haptic, uniformSets, type LastRecord, type SetRow, type TaskDraft } from "../api";
 import { useTasks } from "../useTasks";
 import { FormGuide } from "./FormDiagram";
 import { Sheet } from "./Sheet";
 import { AiSkeleton } from "./Skeleton";
-import { Stepper } from "./Stepper";
+import { SetEditor } from "./SetEditor";
 import { useToast } from "./Toast";
 
 const AI_EXAMPLES = ["45分 中級", "30分 初心者", "高重量・低回数", "自宅・器具なし", "軽めに"];
@@ -96,7 +96,9 @@ function ManualForm({ date, onDone }: { date: string; onDone: () => void }) {
   const last = useMemo(() => new Map((recent.data ?? []).map((r) => [r.name, r])), [recent.data]);
   const [tab, setTab] = useState<PartTab>("chest");
   const [tabTouched, setTabTouched] = useState(false);
-  const [draft, setDraft] = useState<TaskDraft | null>(null);
+  const [draft, setDraft] = useState<{ name: string; part: Part | ""; set_list: SetRow[] } | null>(null);
+  // Copy the last record's sets (weights/reps) without its notes.
+  const setsFrom = (rec: LastRecord, add = 0): SetRow[] => rec.set_list.map((r) => ({ ...r, weight: r.weight > 0 ? r.weight + add : 0, note: "" }));
   const [custom, setCustom] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -119,8 +121,7 @@ function ManualForm({ date, onDone }: { date: string; onDone: () => void }) {
     haptic(6);
     const rec = last.get(name);
     const ex = findExercise(name);
-    const base = rec ?? ex ?? { sets: 3, reps: 10, weight: 0 };
-    setDraft({ name, part, sets: base.sets, reps: base.reps, weight: base.weight });
+    setDraft({ name, part, set_list: rec ? setsFrom(rec) : uniformSets(ex ?? { sets: 3, reps: 10, weight: 0 }) });
     setCustom(false);
   };
 
@@ -129,7 +130,9 @@ function ManualForm({ date, onDone }: { date: string; onDone: () => void }) {
 
   const submit = async (keepOpen: boolean) => {
     if (!draft?.name.trim()) return;
-    await create.mutateAsync([draft]);
+    const first = draft.set_list[0];
+    const item: TaskDraft = { name: draft.name, part: draft.part, sets: draft.set_list.length, reps: first.reps, weight: first.weight, set_list: draft.set_list };
+    await create.mutateAsync([item]);
     haptic(10);
     toast(`${draft.name} を追加`);
     if (keepOpen) {
@@ -198,7 +201,7 @@ function ManualForm({ date, onDone }: { date: string; onDone: () => void }) {
           className="link-btn"
           onClick={() => {
             setCustom(true);
-            setDraft({ name: "", part: tab === "recent" ? "" : tab, sets: 3, reps: 10, weight: 0 });
+            setDraft({ name: "", part: tab === "recent" ? "" : tab, set_list: uniformSets({ sets: 3, reps: 10, weight: 0 }) });
           }}
         >
           <Plus size={15} /> リストにない種目を入力
@@ -217,7 +220,11 @@ function ManualForm({ date, onDone }: { date: string; onDone: () => void }) {
           onChange={(e) => {
             const name = e.target.value;
             const rec = last.get(name.trim());
-            setDraft((d) => ({ ...(d ?? { sets: 3, reps: 10, weight: 0 }), ...(rec ? { sets: rec.sets, reps: rec.reps, weight: rec.weight } : {}), name }));
+            setDraft((d) => ({
+              part: d?.part ?? "",
+              set_list: rec ? setsFrom(rec) : (d?.set_list ?? uniformSets({ sets: 3, reps: 10, weight: 0 })),
+              name,
+            }));
           }}
         />
       )}
@@ -235,27 +242,23 @@ function ManualForm({ date, onDone }: { date: string; onDone: () => void }) {
               <motion.div className="last-rec" initial={{ scale: 0.96 }} animate={{ scale: 1 }} data-testid="last-record">
                 <History size={15} />
                 <span className="grow">
-                  前回 {fmtDate(selected.date)}：{fmtSet(selected)}
+                  前回 {fmtDate(selected.date)}：{fmtSets(selected.set_list)}
                 </span>
-                <button type="button" onClick={() => setDraft({ ...draft, sets: selected.sets, reps: selected.reps, weight: selected.weight })}>
+                <button type="button" onClick={() => setDraft({ ...draft, set_list: setsFrom(selected) })}>
                   同じ
                 </button>
                 {selected.weight > 0 && (
                   <button
                     type="button"
-                    onClick={() => setDraft({ ...draft, sets: selected.sets, reps: selected.reps, weight: selected.weight + 2.5 })}
+                    onClick={() => setDraft({ ...draft, set_list: setsFrom(selected, 2.5) })}
                   >
                     +2.5kg
                   </button>
                 )}
               </motion.div>
             )}
-            <div className="label">内容</div>
-            <div className="steppers">
-              <Stepper label="重量" unit="kg" value={draft.weight} step={2.5} min={0} max={999} onChange={(weight) => setDraft({ ...draft, weight })} />
-              <Stepper label="回数" value={draft.reps} step={1} min={1} max={200} onChange={(reps) => setDraft({ ...draft, reps })} />
-              <Stepper label="セット" value={draft.sets} step={1} min={1} max={20} onChange={(sets) => setDraft({ ...draft, sets })} />
-            </div>
+            <div className="label">セット（{draft.set_list.length}）</div>
+            <SetEditor sets={draft.set_list} onChange={(set_list) => setDraft({ ...draft, set_list })} />
 
             {exercise && (
               <button type="button" className="link-btn" onClick={() => setShowForm((s) => !s)} aria-expanded={showForm}>

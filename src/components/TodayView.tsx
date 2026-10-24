@@ -40,7 +40,7 @@ export function TodayView({
   const d = fromKey(date);
 
   const total = tasks?.length ?? 0;
-  const volume = (tasks ?? []).reduce((a, t) => a + t.sets * t.reps * t.weight, 0);
+  const volume = (tasks ?? []).reduce((a, t) => a + t.set_list.reduce((v, s) => v + s.weight * s.reps, 0), 0);
   const rel = date === today ? "今日" : date === addDays(today, -1) ? "昨日" : date === addDays(today, 1) ? "明日" : null;
 
 

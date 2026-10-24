@@ -145,7 +145,43 @@ app.get("/me", async (c) => {
   return user ? c.json(user) : c.json({ error: "unauthorized" }, 401);
 });
 
-const TASK_COLS = "id, date, name, part, sets, reps, weight, done_sets, note, status, position, completed_at";
+const TASK_COLS = "id, date, name, part, sets, reps, weight, set_list, volume, done_sets, note, status, position, completed_at";
+
+// ---------- per-set detail ----------
+
+type SetRow = { weight: number; reps: number; note: string };
+
+/** Clean a client-sent set list; falls back to identical sets built from sets/reps/weight. */
+function normalizeSets(input: unknown, fallback: { sets?: unknown; reps?: unknown; weight?: unknown }): SetRow[] {
+  const list = Array.isArray(input)
+    ? input.slice(0, 20).map((r: any) => ({
+        weight: clampNum(r?.weight, 0, 999, 0),
+        reps: clampInt(r?.reps, 1, 200, 10),
+        note: cleanText(r?.note, 60),
+      }))
+    : [];
+  if (list.length) return list;
+  const n = clampInt(fallback.sets, 1, 20, 3);
+  const row = { weight: clampNum(fallback.weight, 0, 999, 0), reps: clampInt(fallback.reps, 1, 200, 10), note: "" };
+  return Array.from({ length: n }, () => ({ ...row }));
+}
+
+/** Summary columns kept for stats/AI: set count, heaviest weight with its reps, and total load. */
+function summarize(list: SetRow[]) {
+  const top = list.reduce((a, r) => (r.weight > a.weight ? r : a), list[0]);
+  return { sets: list.length, weight: top.weight, reps: top.reps, volume: list.reduce((a, r) => a + r.weight * r.reps, 0) };
+}
+
+/** Parse a stored row's set_list, expanding legacy '[]' rows from their summary columns. */
+function readSets(row: { set_list?: unknown; sets?: unknown; reps?: unknown; weight?: unknown }): SetRow[] {
+  let list: unknown = [];
+  try {
+    list = typeof row.set_list === "string" ? JSON.parse(row.set_list) : row.set_list;
+  } catch {
+    /* fall through to summary columns */
+  }
+  return normalizeSets(list, row);
+}
 
 const partOf = (input: unknown, name: string): Part | "" =>
   PART_IDS.includes(input as Part) ? (input as Part) : (findExercise(name)?.part ?? "");
@@ -156,17 +192,22 @@ app.get("/tasks", async (c) => {
   // "prev" = the most recent completed set of the same exercise before this day.
   const { results } = await c.env.DB.prepare(
     `SELECT ${TASK_COLS.split(", ").map((col) => "t." + col).join(", ")},
-       (SELECT json_object('date', p.date, 'sets', p.sets, 'reps', p.reps, 'weight', p.weight)
+       (SELECT json_object('date', p.date, 'sets', p.sets, 'reps', p.reps, 'weight', p.weight, 'set_list', json(p.set_list))
           FROM tasks p WHERE p.user_id = t.user_id AND p.name = t.name AND p.status = 'done' AND p.date < t.date
           ORDER BY p.date DESC, p.completed_at DESC LIMIT 1) AS prev
      FROM tasks t WHERE t.user_id = ? AND t.date = ? ORDER BY t.position, t.created_at`,
   )
     .bind(c.get("userId"), date)
     .all<Record<string, unknown>>();
-  return c.json(results.map((r) => ({ ...r, prev: r.prev ? JSON.parse(r.prev as string) : null })));
+  return c.json(
+    results.map((r: any) => {
+      const prev = r.prev ? JSON.parse(r.prev) : null;
+      return { ...r, set_list: readSets(r), prev: prev && { ...prev, set_list: readSets(prev) } };
+    }),
+  );
 });
 
-type TaskInput = { name?: unknown; part?: unknown; sets?: unknown; reps?: unknown; weight?: unknown; note?: unknown };
+type TaskInput = { name?: unknown; part?: unknown; sets?: unknown; reps?: unknown; weight?: unknown; note?: unknown; set_list?: unknown };
 
 app.post("/tasks", async (c) => {
   const body = await c.req.json<{ date?: string; items?: TaskInput[] } & TaskInput>();
@@ -180,29 +221,33 @@ app.post("/tasks", async (c) => {
   const t = now();
   // Registering an exercise means it was done: entries are saved as completed right away.
   const created = items
-    .map((it) => ({
-      id: crypto.randomUUID(),
-      date: body.date!,
-      name: cleanText(it.name, 60),
-      part: partOf(it.part, cleanText(it.name, 60)),
-      sets: clampInt(it.sets, 1, 20, 3),
-      reps: clampInt(it.reps, 1, 200, 10),
-      weight: clampNum(it.weight, 0, 999, 0),
-      done_sets: 0,
-      note: cleanText(it.note, 200),
-      status: "done" as Status,
-      position: ++pos,
-      completed_at: t,
-    }))
-    .map((it) => ({ ...it, done_sets: it.sets }))
+    .map((it) => {
+      const set_list = normalizeSets(it.set_list, it);
+      const sum = summarize(set_list);
+      return {
+        id: crypto.randomUUID(),
+        date: body.date!,
+        name: cleanText(it.name, 60),
+        part: partOf(it.part, cleanText(it.name, 60)),
+        ...sum,
+        set_list,
+        done_sets: sum.sets,
+        note: cleanText(it.note, 200),
+        status: "done" as Status,
+        position: ++pos,
+        completed_at: t,
+      };
+    })
     .filter((it) => it.name);
   if (!created.length) return c.json({ error: "name_required" }, 400);
   await c.env.DB.batch(
     created.map((it) =>
       c.env.DB.prepare(
-        `INSERT INTO tasks (id, user_id, date, name, part, sets, reps, weight, done_sets, note, status, position, created_at, updated_at, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'done', ?, ?, ?, ?)`,
-      ).bind(it.id, userId, it.date, it.name, it.part, it.sets, it.reps, it.weight, it.sets, it.note, it.position, t, t, t),
+        `INSERT INTO tasks (id, user_id, date, name, part, sets, reps, weight, set_list, volume, done_sets, note, status, position,
+           created_at, updated_at, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'done', ?, ?, ?, ?)`,
+      ).bind(it.id, userId, it.date, it.name, it.part, it.sets, it.reps, it.weight, JSON.stringify(it.set_list), it.volume, it.sets,
+        it.note, it.position, t, t, t),
     ),
   );
   return c.json(created.map((it) => ({ ...it, prev: null })), 201);
@@ -219,9 +264,12 @@ app.patch("/tasks/:id", async (c) => {
   const next = { ...cur };
   if ("name" in b) next.name = cleanText(b.name, 60) || cur.name;
   if ("name" in b || "part" in b) next.part = partOf(b.part ?? cur.part, next.name);
-  if ("sets" in b) next.sets = clampInt(b.sets, 1, 20, cur.sets);
-  if ("reps" in b) next.reps = clampInt(b.reps, 1, 200, cur.reps);
-  if ("weight" in b) next.weight = clampNum(b.weight, 0, 999, cur.weight);
+  if ("set_list" in b || "sets" in b || "reps" in b || "weight" in b) {
+    const list = "set_list" in b ? normalizeSets(b.set_list, cur) : normalizeSets(null, { ...cur, ...b });
+    Object.assign(next, summarize(list), { set_list: list, done_sets: list.length });
+  } else {
+    next.set_list = readSets(cur);
+  }
   if ("note" in b) next.note = cleanText(b.note, 200);
   if ("position" in b) next.position = Number(b.position) || cur.position;
   if ("done_sets" in b) next.done_sets = clampInt(b.done_sets, 0, next.sets, cur.done_sets);
@@ -232,10 +280,11 @@ app.patch("/tasks/:id", async (c) => {
   if (next.status === "doing" && next.done_sets >= next.sets) next.done_sets = Math.max(0, next.sets - 1);
   next.completed_at = next.status === "done" ? (cur.completed_at ?? now()) : null;
   await c.env.DB.prepare(
-    `UPDATE tasks SET name = ?, part = ?, sets = ?, reps = ?, weight = ?, note = ?, position = ?, done_sets = ?, status = ?,
-       completed_at = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+    `UPDATE tasks SET name = ?, part = ?, sets = ?, reps = ?, weight = ?, set_list = ?, volume = ?, note = ?, position = ?,
+       done_sets = ?, status = ?, completed_at = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
   )
-    .bind(next.name, next.part, next.sets, next.reps, next.weight, next.note, next.position, next.done_sets, next.status,
+    .bind(next.name, next.part, next.sets, next.reps, next.weight, JSON.stringify(next.set_list), next.volume, next.note,
+      next.position, next.done_sets, next.status,
       next.completed_at, now(), id, userId)
     .run();
   return c.json(next);
@@ -253,7 +302,7 @@ app.get("/summary", async (c) => {
   if (!isDate(from) || !isDate(to)) return c.json({ error: "bad_date" }, 400);
   const { results } = await c.env.DB.prepare(
     `SELECT date, COUNT(*) AS total, SUM(status = 'done') AS done,
-       SUM(CASE WHEN status = 'done' THEN sets * reps * weight ELSE 0 END) AS volume,
+       SUM(CASE WHEN status = 'done' THEN volume ELSE 0 END) AS volume,
        GROUP_CONCAT(DISTINCT CASE WHEN status = 'done' AND part != '' THEN part END) AS parts,
        GROUP_CONCAT(DISTINCT CASE WHEN status != 'done' AND part != '' THEN part END) AS planned
      FROM tasks WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date ORDER BY date`,
@@ -265,27 +314,29 @@ app.get("/summary", async (c) => {
   return c.json(results.map((r) => ({ ...r, parts: split(r.parts), planned: split(r.planned) })));
 });
 
-// Last completed record per exercise (SQLite returns the row holding MAX()), used to prefill new entries.
+// Latest completed record per exercise (by training date), used to prefill new entries.
 app.get("/exercises", async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT name, part, sets, reps, weight, date, MAX(completed_at) AS completed_at
-     FROM tasks WHERE user_id = ? AND status = 'done' GROUP BY name ORDER BY completed_at DESC LIMIT 300`,
+    `SELECT name, part, sets, reps, weight, set_list, date, completed_at FROM (
+       SELECT *, ROW_NUMBER() OVER (PARTITION BY name ORDER BY date DESC, completed_at DESC) AS rn
+       FROM tasks WHERE user_id = ? AND status = 'done')
+     WHERE rn = 1 ORDER BY date DESC, completed_at DESC LIMIT 300`,
   )
     .bind(c.get("userId"))
-    .all();
-  return c.json(results);
+    .all<any>();
+  return c.json(results.map((r) => ({ ...r, set_list: readSets(r) })));
 });
 
 // Recent completed history of one exercise, for the edit sheet.
 app.get("/history", async (c) => {
   const name = cleanText(c.req.query("name"), 60);
   const { results } = await c.env.DB.prepare(
-    `SELECT date, sets, reps, weight FROM tasks WHERE user_id = ? AND name = ? AND status = 'done'
+    `SELECT date, sets, reps, weight, set_list FROM tasks WHERE user_id = ? AND name = ? AND status = 'done'
      ORDER BY date DESC, completed_at DESC LIMIT 6`,
   )
     .bind(c.get("userId"), name)
-    .all();
-  return c.json(results);
+    .all<any>();
+  return c.json(results.map((r) => ({ ...r, set_list: readSets(r) })));
 });
 
 // Completed exercises per body part.

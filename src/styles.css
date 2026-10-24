@@ -1668,3 +1668,154 @@ textarea.field {
   font-weight: 800;
   color: var(--blue);
 }
+
+/* ---------- per-set editor ---------- */
+
+.set-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.set-row {
+  border-radius: 16px;
+  background: rgba(15, 20, 40, 0.04);
+  padding: 8px 8px 8px 6px;
+  overflow: hidden;
+}
+.set-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.set-no {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--text);
+  color: #fff;
+}
+.set-main .x {
+  font-weight: 800;
+  color: var(--muted);
+  font-size: 13px;
+}
+.mini-step {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20, 30, 60, 0.08);
+}
+.mini-step button {
+  flex: none;
+  width: 30px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.mini-step label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+}
+.mini-step input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  text-align: right;
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+}
+.mini-step small {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-left: 2px;
+}
+.set-del {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.set-del:disabled {
+  opacity: 0.25;
+}
+.set-note {
+  width: 100%;
+  margin-top: 6px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0 10px 0 28px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+.set-note:focus {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+}
+.set-add {
+  height: 42px;
+  border-radius: 14px;
+  border: 1.5px dashed rgba(15, 20, 40, 0.18);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* sets on a card */
+.card .set-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.card .set-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 9px;
+  background: rgba(15, 20, 40, 0.05);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.card .set-chip i {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.card .set-notes {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.5;
+}

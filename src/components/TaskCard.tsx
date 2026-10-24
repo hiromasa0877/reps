@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "motion/react";
 import { BookOpen, ChevronsLeft, Trash2 } from "lucide-react";
 import { PARTS, findExercise } from "../../shared/catalog";
-import { fmtDate, haptic, type Task } from "../api";
+import { fmtDate, fmtSets, fmtWeight, haptic, type Task } from "../api";
 
 const THRESHOLD = 88;
 
@@ -33,7 +33,7 @@ export function TaskCard({ task, index, onDelete, onOpen, onForm }: Props) {
     }
   });
 
-  const weight = task.weight > 0 ? `${task.weight}kg` : "自重";
+  const notes = task.set_list.map((s, i) => (s.note ? `${i + 1}: ${s.note}` : "")).filter(Boolean);
   const part = PARTS.find((p) => p.id === task.part);
   const hasForm = !!findExercise(task.name);
   const delta = task.prev ? task.weight - task.prev.weight : 0;
@@ -105,12 +105,18 @@ export function TaskCard({ task, index, onDelete, onOpen, onForm }: Props) {
             )}
             {task.name}
           </div>
-          <div className="meta">
-            <b>{weight}</b> × <b>{task.reps}</b>回 × <b>{task.sets}</b>セット
+          <div className="set-chips" aria-label={`${task.sets}セット`}>
+            {task.set_list.map((s, i) => (
+              <span key={i} className="set-chip">
+                <i>{i + 1}</i>
+                {fmtWeight(s.weight)}×{s.reps}
+              </span>
+            ))}
           </div>
+          {notes.length > 0 && <div className="set-notes">{notes.join(" ／ ")}</div>}
           {task.prev && (
             <div className="prev" data-testid="prev">
-              前回 {fmtDate(task.prev.date)} {task.prev.weight > 0 ? `${task.prev.weight}kg` : "自重"}×{task.prev.reps}×{task.prev.sets}
+              前回 {fmtDate(task.prev.date)} {fmtSets(task.prev.set_list)}
               {delta !== 0 && <span className={`delta ${delta > 0 ? "up" : "down"}`}>{delta > 0 ? "+" : ""}{delta}kg</span>}
             </div>
           )}
