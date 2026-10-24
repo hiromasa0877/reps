@@ -1,12 +1,12 @@
 import { motion } from "motion/react";
-import { BookOpen, Check, ChevronsLeft, Hand, LogOut, Play, Sparkles } from "lucide-react";
+import { BookOpen, CalendarDays, Check, ChevronsLeft, LogOut, Pencil, Sparkles } from "lucide-react";
 import type { User } from "../api";
 
 const GUIDE = [
-  { icon: <Play size={15} fill="currentColor" />, color: "#ff9500", text: "右にフリック：未着手 → 実施中" },
-  { icon: <Check size={16} strokeWidth={3} />, color: "#22c55e", text: "もう一度右へ：実施中 → 完了" },
-  { icon: <ChevronsLeft size={17} />, color: "#8e96a8", text: "左にフリック：ひとつ戻す／未着手は削除" },
-  { icon: <Hand size={16} />, color: "#0a84ff", text: "セット番号をタップで進捗を記録" },
+  { icon: <Check size={16} strokeWidth={3} />, color: "#22c55e", text: "＋ で追加した種目はそのまま記録（完了）になります" },
+  { icon: <CalendarDays size={16} />, color: "#0a84ff", text: "カレンダーの人のイラストで、その日に鍛えた部位が分かります" },
+  { icon: <ChevronsLeft size={17} />, color: "#ff3b30", text: "左にスワイプで削除（直後なら元に戻せます）" },
+  { icon: <Pencil size={15} />, color: "#8e96a8", text: "カードをタップで重量・回数・メモを修正" },
   { icon: <BookOpen size={15} />, color: "#ff6b6b", text: "本のアイコン：正しいフォームを図解で確認" },
   { icon: <Sparkles size={16} />, color: "#a855f7", text: "＋ → AI で作成：部位と要望からメニュー生成" },
 ];

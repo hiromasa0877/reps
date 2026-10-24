@@ -1,53 +1,23 @@
-import { useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { Dumbbell } from "lucide-react";
 import { WEEKDAYS, addDays, fromKey, todayKey, type Task } from "../api";
 import { MonthCalendar } from "./MonthCalendar";
-import { STATUS_META, STATUS_ORDER, nextStatus, prevStatus, useTasks } from "../useTasks";
+import { useTasks } from "../useTasks";
 import { CardSkeletons } from "./Skeleton";
 import { SwipeHint, TaskCard } from "./TaskCard";
 
-function ProgressRing({ done, total }: { done: number; total: number }) {
-  const r = 24;
-  const c = 2 * Math.PI * r;
-  const p = total ? done / total : 0;
-  const complete = total > 0 && done === total;
+/** Day total: exercises logged and load, with a pop when it changes. */
+function DayTotal({ count, volume }: { count: number; volume: number }) {
   return (
-    <motion.div
-      className="ring"
-      aria-label={`${done} / ${total} 完了`}
-      animate={complete ? { scale: [1, 1.15, 1] } : { scale: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <svg width="58" height="58" viewBox="0 0 58 58">
-        <circle cx="29" cy="29" r={r} fill="none" stroke="rgba(15,20,40,.08)" strokeWidth="6" />
-        <motion.circle
-          cx="29"
-          cy="29"
-          r={r}
-          fill="none"
-          stroke={complete ? "#22c55e" : "#0b0d12"}
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          initial={{ strokeDashoffset: c }}
-          animate={{ strokeDashoffset: c * (1 - p), stroke: complete ? "#22c55e" : "#0b0d12" }}
-          transition={{ type: "spring", stiffness: 120, damping: 20 }}
-        />
-      </svg>
-      <div className="num">
-        <AnimatePresence mode="popLayout">
-          <motion.span
-            key={`${done}/${total}`}
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -10, opacity: 0 }}
-          >
-            {done}/{total}
-          </motion.span>
-        </AnimatePresence>
-      </div>
-    </motion.div>
+    <div className="day-total" aria-label={`${count}種目 ${volume}kg`}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.b key={count} initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -10, opacity: 0 }}>
+          {count}
+        </motion.b>
+      </AnimatePresence>
+      <span>種目</span>
+      {volume > 0 && <small>{volume >= 1000 ? `${(volume / 1000).toFixed(2)}t` : `${volume}kg`}</small>}
+    </div>
   );
 }
 
@@ -64,24 +34,15 @@ export function TodayView({
   onForm: (t: Task) => void;
   onAdd: () => void;
 }) {
-  const { query, setStatus, setDoneSets, remove } = useTasks(date);
+  const { query, remove } = useTasks(date);
   const tasks = query.data;
   const today = todayKey();
   const d = fromKey(date);
 
-  const groups = useMemo(
-    () =>
-      STATUS_ORDER.map((status) => ({
-        status,
-        items: (tasks ?? []).filter((t) => t.status === status),
-      })).filter((g) => g.items.length),
-    [tasks],
-  );
-  const done = tasks?.filter((t) => t.status === "done").length ?? 0;
   const total = tasks?.length ?? 0;
+  const volume = (tasks ?? []).reduce((a, t) => a + t.sets * t.reps * t.weight, 0);
   const rel = date === today ? "今日" : date === addDays(today, -1) ? "昨日" : date === addDays(today, 1) ? "明日" : null;
 
-  let index = 0;
 
   return (
     <>
@@ -117,7 +78,7 @@ export function TodayView({
               </motion.div>
             </AnimatePresence>
           </div>
-          <ProgressRing done={done} total={total} />
+          <DayTotal count={total} volume={volume} />
         </div>
       </motion.header>
 
@@ -143,33 +104,9 @@ export function TodayView({
           <LayoutGroup>
             <ul className="list">
               <AnimatePresence initial={true}>
-                {groups.flatMap((g) => [
-                  <motion.li
-                    layout="position"
-                    key={`h-${g.status}`}
-                    className="section-head"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <span className="chip" style={{ background: STATUS_META[g.status].color }} />
-                    {STATUS_META[g.status].label}
-                    <span className="count">{g.items.length}</span>
-                  </motion.li>,
-                  ...g.items.map((t) => (
-                    <TaskCard
-                      key={t.id}
-                      task={t}
-                      index={index++}
-                      onAdvance={() => nextStatus(t.status) && setStatus(t, nextStatus(t.status)!)}
-                      onBack={() => prevStatus(t.status) && setStatus(t, prevStatus(t.status)!)}
-                      onDelete={() => remove(t)}
-                      onSets={(n) => setDoneSets(t, n)}
-                      onOpen={() => onOpen(t)}
-                      onForm={() => onForm(t)}
-                    />
-                  )),
-                ])}
+                {(tasks ?? []).map((t, i) => (
+                  <TaskCard key={t.id} task={t} index={i} onDelete={() => remove(t)} onOpen={() => onOpen(t)} onForm={() => onForm(t)} />
+                ))}
               </AnimatePresence>
             </ul>
           </LayoutGroup>

@@ -1640,3 +1640,31 @@ textarea.field {
   font-weight: 700;
   background: rgba(15, 20, 40, 0.05);
 }
+
+.day-total {
+  flex: none;
+  min-width: 64px;
+  padding: 8px 12px;
+  border-radius: 18px;
+  background: rgba(15, 20, 40, 0.05);
+  display: grid;
+  justify-items: center;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.day-total b {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.day-total span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.day-total small {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--blue);
+}

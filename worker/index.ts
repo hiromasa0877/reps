@@ -178,6 +178,7 @@ app.post("/tasks", async (c) => {
     .first<{ p: number }>();
   let pos = maxPos?.p ?? 0;
   const t = now();
+  // Registering an exercise means it was done: entries are saved as completed right away.
   const created = items
     .map((it) => ({
       id: crypto.randomUUID(),
@@ -189,18 +190,19 @@ app.post("/tasks", async (c) => {
       weight: clampNum(it.weight, 0, 999, 0),
       done_sets: 0,
       note: cleanText(it.note, 200),
-      status: "todo" as Status,
+      status: "done" as Status,
       position: ++pos,
-      completed_at: null,
+      completed_at: t,
     }))
+    .map((it) => ({ ...it, done_sets: it.sets }))
     .filter((it) => it.name);
   if (!created.length) return c.json({ error: "name_required" }, 400);
   await c.env.DB.batch(
     created.map((it) =>
       c.env.DB.prepare(
-        `INSERT INTO tasks (id, user_id, date, name, part, sets, reps, weight, done_sets, note, status, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'todo', ?, ?, ?)`,
-      ).bind(it.id, userId, it.date, it.name, it.part, it.sets, it.reps, it.weight, it.note, it.position, t, t),
+        `INSERT INTO tasks (id, user_id, date, name, part, sets, reps, weight, done_sets, note, status, position, created_at, updated_at, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'done', ?, ?, ?, ?)`,
+      ).bind(it.id, userId, it.date, it.name, it.part, it.sets, it.reps, it.weight, it.sets, it.note, it.position, t, t, t),
     ),
   );
   return c.json(created.map((it) => ({ ...it, prev: null })), 201);

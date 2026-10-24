@@ -67,7 +67,7 @@ function StatsBody({
 
   const stats = [
     { k: "連続日数", v: streak, unit: "日", icon: <Flame size={14} color="#ff9500" /> },
-    { k: "7日間の完了", v: weekDone, unit: "種目", icon: <Trophy size={14} color="#eab308" /> },
+    { k: "7日間の種目数", v: weekDone, unit: "種目", icon: <Trophy size={14} color="#eab308" /> },
     { k: "実施日数", v: activeDays, unit: "/28日", icon: <CalendarCheck size={14} color="#22c55e" /> },
     { k: "総ボリューム", v: volume, unit: "kg", icon: <Weight size={14} color="#0a84ff" /> },
   ];
@@ -138,7 +138,7 @@ function StatsBody({
       </div>
 
       <motion.div className="glass panel" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <h3>直近7日の完了種目</h3>
+        <h3>直近7日の種目数</h3>
         <div className="bars">
           {last7.map((d, i) => {
             const v = by.get(d)?.done ?? 0;
@@ -162,7 +162,7 @@ function StatsBody({
       </motion.div>
 
       <motion.div className="glass panel" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-        <h3>部位別の完了種目</h3>
+        <h3>部位別の種目数</h3>
         <div className="part-bars">
           {PARTS.map((p, i) => {
             const v = parts.find((x) => x.part === p.id)?.done ?? 0;

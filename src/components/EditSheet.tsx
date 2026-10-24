@@ -3,9 +3,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Check, Trash2 } from "lucide-react";
 import { findExercise } from "../../shared/catalog";
-import { api, fmtDate, fmtSet, type Status, type Task } from "../api";
+import { api, fmtDate, fmtSet, type Task } from "../api";
 import { FormGuide } from "./FormDiagram";
-import { STATUS_META, useTasks } from "../useTasks";
+import { useTasks } from "../useTasks";
 import { Sheet } from "./Sheet";
 import { Stepper } from "./Stepper";
 
@@ -27,27 +27,11 @@ export function EditSheet({ task, onClose }: { task: Task | null; onClose: () =>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const { name, sets, reps, weight, note, status } = draft;
-            update.mutate({ id: draft.id, patch: { name, sets, reps, weight, note, status } });
+            const { name, sets, reps, weight, note } = draft;
+            update.mutate({ id: draft.id, patch: { name, sets, reps, weight, note } });
             onClose();
           }}
         >
-          <div className="segmented" style={{ gridTemplateColumns: "1fr 1fr 1fr" }} role="radiogroup" aria-label="ステータス">
-            {(["todo", "doing", "done"] as Status[]).map((s) => (
-              <button
-                type="button"
-                key={s}
-                role="radio"
-                aria-checked={draft.status === s}
-                className={draft.status === s ? "on" : ""}
-                onClick={() => setDraft({ ...draft, status: s })}
-              >
-                {draft.status === s && <motion.div layoutId="status-thumb" className="thumb" transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
-                <span style={{ width: 8, height: 8, borderRadius: 9, background: STATUS_META[s].color }} />
-                <span>{STATUS_META[s].label}</span>
-              </button>
-            ))}
-          </div>
           <input
             className="field"
             aria-label="種目名"
