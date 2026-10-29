@@ -1,6 +1,6 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Minus, Plus, X } from "lucide-react";
+import { CopyCheck, Minus, Plus, X } from "lucide-react";
 import { haptic, type SetRow } from "../api";
 
 function MiniStep({
@@ -50,7 +50,7 @@ function MiniStep({
   );
 }
 
-/** Edit each set separately: weight, reps and a note per set. New sets copy the last one. */
+/** Edit each set separately: weight, reps and a note per set. New sets copy the last one; set 1 can be copied to all. */
 export function SetEditor({ sets, onChange }: { sets: SetRow[]; onChange: (sets: SetRow[]) => void }) {
   const patch = (i: number, p: Partial<SetRow>) => onChange(sets.map((s, j) => (j === i ? { ...s, ...p } : s)));
   // Stable keys so removing a middle set animates that row, not the last one.
@@ -58,8 +58,33 @@ export function SetEditor({ sets, onChange }: { sets: SetRow[]; onChange: (sets:
   const ids = useRef<number[]>([]);
   while (ids.current.length < sets.length) ids.current.push(++seq.current);
   ids.current.length = sets.length;
+  const [flash, setFlash] = useState(0); // bumps to pulse the rows that just received set 1's values
+  const first = sets[0];
+  const allSame = sets.every((s) => s.weight === first.weight && s.reps === first.reps);
+  const copyFirst = () => {
+    haptic([6, 30, 6]);
+    onChange(sets.map((s, i) => (i === 0 ? s : { ...s, weight: first.weight, reps: first.reps })));
+    setFlash((n) => n + 1);
+  };
   return (
     <div className="set-editor" data-testid="set-editor">
+      <AnimatePresence initial={false}>
+        {sets.length > 1 && (
+          <motion.button
+            type="button"
+            className="set-copy"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 36 }}
+            exit={{ opacity: 0, height: 0 }}
+            whileTap={{ scale: 0.96 }}
+            disabled={allSame}
+            onClick={copyFirst}
+          >
+            <CopyCheck size={15} />
+            1セット目（{first.weight > 0 ? `${first.weight}kg` : "自重"}×{first.reps}回）を全セットにコピー
+          </motion.button>
+        )}
+      </AnimatePresence>
       <AnimatePresence initial={false}>
         {sets.map((s, i) => (
           <motion.div
@@ -71,6 +96,15 @@ export function SetEditor({ sets, onChange }: { sets: SetRow[]; onChange: (sets:
             exit={{ opacity: 0, height: 0, x: -40 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
           >
+            {i > 0 && flash > 0 && (
+              <motion.span
+                key={flash}
+                className="set-flash"
+                initial={{ opacity: 0.55 }}
+                animate={{ opacity: 0 }}
+                transition={{ duration: 0.7, delay: i * 0.05 }}
+              />
+            )}
             <div className="set-main">
               <span className="set-no">{i + 1}</span>
               <MiniStep label={`${i + 1}セット目の重量`} value={s.weight} step={2.5} min={0} max={999} unit="kg" onChange={(weight) => patch(i, { weight })} />

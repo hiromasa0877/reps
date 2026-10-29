@@ -1819,3 +1819,31 @@ textarea.field {
   font-weight: 600;
   line-height: 1.5;
 }
+
+.set-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  background: rgba(10, 132, 255, 0.08);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.set-copy:disabled {
+  color: var(--muted);
+  background: rgba(15, 20, 40, 0.04);
+}
+.set-row {
+  position: relative;
+}
+.set-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(10, 132, 255, 0.35);
+  pointer-events: none;
+}
